@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Clock, Plus, Trash2, MapPin } from 'lucide-react';
-import { db } from '../firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { COLLECTIONS } from '../firebase';
+import { useFirestoreCollection } from '../lib/useFirestoreCollection';
 
 interface ScheduleItem {
   id: string;
@@ -15,39 +15,19 @@ interface ScheduleItem {
 const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי'];
 
 export function SchedulePage() {
-  const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
+  const { items: schedule, loading, add, remove } = useFirestoreCollection<ScheduleItem>(COLLECTIONS.schedule);
   const [day, setDay] = useState('ראשון');
   const [courseName, setCourseName] = useState('');
   const [time, setTime] = useState('');
   const [location, setLocation] = useState('');
   const [lecturer, setLecturer] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  const fetchSchedule = useCallback(async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'schedule'));
-      const list: ScheduleItem[] = [];
-      querySnapshot.forEach((docSnap) => {
-        list.push({ id: docSnap.id, ...docSnap.data() } as ScheduleItem);
-      });
-      setSchedule(list);
-    } catch (error) {
-      console.error('Error fetching schedule:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchSchedule();
-  }, [fetchSchedule]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!courseName || !time) return;
 
     try {
-      await addDoc(collection(db, 'schedule'), {
+      await add({
         day,
         courseName,
         time,
@@ -58,18 +38,8 @@ export function SchedulePage() {
       setTime('');
       setLocation('');
       setLecturer('');
-      fetchSchedule();
     } catch (error) {
       console.error('Error adding schedule item:', error);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, 'schedule', id));
-      setSchedule(schedule.filter((item) => item.id !== id));
-    } catch (error) {
-      console.error('Error deleting schedule item:', error);
     }
   };
 
@@ -180,7 +150,7 @@ export function SchedulePage() {
                       {item.lecturer && <p className="text-xs text-stone-400 mt-1">מרצה: {item.lecturer}</p>}
                     </div>
                     <button
-                      onClick={() => handleDelete(item.id)}
+                      onClick={() => remove(item.id)}
                       className="p-2 text-stone-400 hover:text-red-600 transition cursor-pointer"
                     >
                       <Trash2 size={16} />

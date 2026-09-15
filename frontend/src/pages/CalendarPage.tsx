@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useMemo, useState } from 'react';
 import { Calendar as CalendarIcon, Plus, Trash2, Clock } from 'lucide-react';
-import { db } from '../firebase';
-import { collection, addDoc, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { COLLECTIONS } from '../firebase';
+import { useFirestoreCollection } from '../lib/useFirestoreCollection';
 
 interface CalendarEvent {
   id: string;
@@ -20,61 +20,31 @@ const EVENT_COLORS = [
 ];
 
 export function CalendarPage() {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const { items: events, loading, add, remove } = useFirestoreCollection<CalendarEvent>(COLLECTIONS.calendar);
   const [title, setTitle] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
   const [type, setType] = useState<'exam' | 'submission' | 'personal' | 'study'>('study');
   const [description, setDescription] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  const fetchEvents = useCallback(async () => {
-    try {
-      const querySnapshot = await getDocs(collection(db, 'calendar_events'));
-      const eventsList: CalendarEvent[] = [];
-      querySnapshot.forEach((docSnap) => {
-        eventsList.push({ id: docSnap.id, ...docSnap.data() } as CalendarEvent);
-      });
-      setEvents(eventsList);
-    } catch (error) {
-      console.error('Error fetching events:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchEvents();
-  }, [fetchEvents]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !date) return;
 
     try {
-      await addDoc(collection(db, 'calendar_events'), {
+      await add({
         title,
         date,
         time: time || '00:00',
         type,
-        description,
+        description: description || '',
       });
       setTitle('');
       setDate('');
       setTime('');
       setDescription('');
-      fetchEvents();
     } catch (error) {
       console.error('Error adding event:', error);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteDoc(doc(db, 'calendar_events', id));
-      setEvents(events.filter((ev) => ev.id !== id));
-    } catch (error) {
-      console.error('Error deleting event:', error);
     }
   };
 
@@ -107,7 +77,7 @@ export function CalendarPage() {
             <label className="block text-xs font-medium text-stone-600 mb-1">סוג אירוע</label>
             <select
               value={type}
-              onChange={(e) => setType(e.target.value as any)}
+              onChange={(e) => setType(e.target.value as CalendarEvent['type'])}
               className="w-full px-3 py-2 bg-stone-50/50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
             >
               {EVENT_COLORS.map((c) => (
@@ -187,7 +157,7 @@ export function CalendarPage() {
                     {ev.description && <p className="text-xs text-stone-600 mt-1">{ev.description}</p>}
                   </div>
                   <button
-                    onClick={() => handleDelete(ev.id)}
+                    onClick={() => remove(ev.id)}
                     className="p-2 text-stone-400 hover:text-red-600 transition cursor-pointer"
                   >
                     <Trash2 size={16} />

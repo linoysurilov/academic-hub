@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { BookOpen, Plus, Trash2, CheckCircle2, FileText, Edit3, X, TrendingUp } from 'lucide-react';
+import { COLLECTIONS } from '../firebase';
+import { migrateLocalArray } from '../lib/migrateLocal';
+import { useFirestoreCollection } from '../lib/useFirestoreCollection';
 
 interface LectureItem {
   id: string;
@@ -28,10 +31,17 @@ interface Course {
   assignments: AssignmentItem[];
 }
 
-const STORAGE_KEY = 'academic-hub-courses-data';
-
 export function AcademicHub() {
-  const [courses, setCourses] = useState<Course[]>([]);
+  const { items, save, remove } = useFirestoreCollection<Course>(COLLECTIONS.tasks);
+  const courses = useMemo(
+    () =>
+      items.map((course) => ({
+        ...course,
+        items: course.items ?? [],
+        assignments: course.assignments ?? [],
+      })),
+    [items],
+  );
   const [activeCourseId, setActiveCourseId] = useState<string | null>(null);
 
   const [isAddCourseOpen, setIsAddCourseOpen] = useState(false);
@@ -50,21 +60,17 @@ export function AcademicHub() {
   const [editingItem, setEditingItem] = useState<{ courseId: string; itemId: string; topic: string } | null>(null);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setCourses(parsed);
-        if (parsed.length > 0) setActiveCourseId(parsed[0].id);
-      }
-    } catch {}
+    void migrateLocalArray('academic-hub-courses-data', COLLECTIONS.tasks);
   }, []);
 
-  const saveToStorage = (updated: Course[]) => {
-    setCourses(updated);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
+  useEffect(() => {
+    if (!activeCourseId && courses.length > 0) {
+      setActiveCourseId(courses[0].id);
+    }
+  }, [courses, activeCourseId]);
+
+  const persistCourse = (course: Course) => {
+    void save(course);
   };
 
   const addCourse = () => {
@@ -91,42 +97,37 @@ export function AcademicHub() {
       assignments: [],
     };
 
-    const updated = [...courses, newCourse];
-    saveToStorage(updated);
+    persistCourse(newCourse);
     setActiveCourseId(newCourse.id);
     setNewCourseName('');
     setIsAddCourseOpen(false);
   };
 
   const deleteCourse = (courseId: string) => {
-    const updated = courses.filter((c) => c.id !== courseId);
-    saveToStorage(updated);
+    void remove(courseId);
     if (activeCourseId === courseId) {
-      setActiveCourseId(updated.length > 0 ? updated[0].id : null);
+      const remaining = courses.filter((c) => c.id !== courseId);
+      setActiveCourseId(remaining.length > 0 ? remaining[0].id : null);
     }
   };
 
   const toggleWatched = (courseId: string, itemId: string) => {
-    const updated = courses.map((c) => {
-      if (c.id !== courseId) return c;
-      return {
-        ...c,
-        items: c.items.map((it) => (it.id === itemId ? { ...it, watched: !it.watched } : it)),
-      };
+    const course = courses.find((c) => c.id === courseId);
+    if (!course) return;
+    persistCourse({
+      ...course,
+      items: course.items.map((it) => (it.id === itemId ? { ...it, watched: !it.watched } : it)),
     });
-    saveToStorage(updated);
   };
 
   const saveTopic = () => {
     if (!editingItem) return;
-    const updated = courses.map((c) => {
-      if (c.id !== editingItem.courseId) return c;
-      return {
-        ...c,
-        items: c.items.map((it) => (it.id === editingItem.itemId ? { ...it, topic: editingItem.topic } : it)),
-      };
+    const course = courses.find((c) => c.id === editingItem.courseId);
+    if (!course) return;
+    persistCourse({
+      ...course,
+      items: course.items.map((it) => (it.id === editingItem.itemId ? { ...it, topic: editingItem.topic } : it)),
     });
-    saveToStorage(updated);
     setEditingItem(null);
   };
 
@@ -141,11 +142,9 @@ export function AcademicHub() {
       teamSize: assTeamSize.trim(),
     };
 
-    const updated = courses.map((c) => {
-      if (c.id !== courseId) return c;
-      return { ...c, assignments: [...c.assignments, newAss] };
-    });
-    saveToStorage(updated);
+    const course = courses.find((c) => c.id === courseId);
+    if (!course) return;
+    persistCourse({ ...course, assignments: [...course.assignments, newAss] });
     setAssTitle('');
     setAssWeight('');
     setAssGrade('');
@@ -155,11 +154,12 @@ export function AcademicHub() {
   };
 
   const deleteAssignment = (courseId: string, assId: string) => {
-    const updated = courses.map((c) => {
-      if (c.id !== courseId) return c;
-      return { ...c, assignments: c.assignments.filter((a) => a.id !== assId) };
+    const course = courses.find((c) => c.id === courseId);
+    if (!course) return;
+    persistCourse({
+      ...course,
+      assignments: course.assignments.filter((a) => a.id !== assId),
     });
-    saveToStorage(updated);
   };
 
   const activeCourse = courses.find((c) => c.id === activeCourseId);

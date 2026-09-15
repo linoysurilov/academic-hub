@@ -1,5 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { CalendarDays, Plus, Trash2, Award, Clock, Calendar as CalendarIcon, X } from 'lucide-react';
+import { COLLECTIONS } from '../firebase';
+import { migrateLocalArray } from '../lib/migrateLocal';
+import { useFirestoreCollection } from '../lib/useFirestoreCollection';
 
 interface ExamItem {
   id: string;
@@ -9,10 +12,15 @@ interface ExamItem {
   grade: string;
 }
 
-const STORAGE_KEY = 'academic-hub-exams-data';
-
 export function ExamsPage() {
-  const [exams, setExams] = useState<ExamItem[]>([]);
+  const { items, add, remove } = useFirestoreCollection<ExamItem>(COLLECTIONS.exams);
+  const exams = useMemo(() => {
+    return [...items].sort((a, b) => {
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+  }, [items]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [courseName, setCourseName] = useState('');
@@ -21,39 +29,18 @@ export function ExamsPage() {
   const [examGrade, setExamGrade] = useState('');
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        setExams(JSON.parse(saved));
-      }
-    } catch {}
+    void migrateLocalArray('academic-hub-exams-data', COLLECTIONS.exams);
   }, []);
 
-  const saveToStorage = (updated: ExamItem[]) => {
-    setExams(updated);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    } catch {}
-  };
-
-  const addExam = () => {
+  const addExam = async () => {
     if (!courseName.trim()) return;
 
-    const newExam: ExamItem = {
-      id: crypto.randomUUID(),
+    await add({
       courseName: courseName.trim(),
       date: examDate.trim(),
       time: examTime.trim(),
       grade: examGrade.trim(),
-    };
-
-    const updated = [...exams, newExam].sort((a, b) => {
-      if (!a.date) return 1;
-      if (!b.date) return -1;
-      return new Date(a.date).getTime() - new Date(b.date).getTime();
     });
-
-    saveToStorage(updated);
 
     setCourseName('');
     setExamDate('');
@@ -63,8 +50,7 @@ export function ExamsPage() {
   };
 
   const deleteExam = (id: string) => {
-    const updated = exams.filter((e) => e.id !== id);
-    saveToStorage(updated);
+    void remove(id);
   };
 
   return (
