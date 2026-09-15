@@ -98,9 +98,8 @@ export function CalendarPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-col gap-1">
-        <p className="text-xs font-medium tracking-wide text-stone-400">לוח שנה עברי ולועזי</p>
-        <h2 className="text-2xl font-semibold tracking-tight">שנה אחורה ושנה קדימה מהיום</h2>
+      <header>
+        <h2 className="text-2xl font-semibold tracking-tight">לוח שנה עברי לועזי</h2>
       </header>
 
       <section className="overflow-hidden rounded-3xl border border-stone-200/80 bg-white shadow-sm">

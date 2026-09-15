@@ -146,10 +146,8 @@ export function SchedulePage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <header className="flex flex-col gap-1">
-        <p className="text-xs font-medium tracking-wide text-stone-400">מערכת שעות</p>
-        <h2 className="text-2xl font-semibold tracking-tight">ראשון עד חמישי, 08:00–21:00</h2>
-        <p className="text-sm text-stone-500">בחרי טווח שעות וצבע; השיעור ימלא את כל המשבצות בטווח.</p>
+      <header>
+        <h2 className="text-2xl font-semibold tracking-tight">מערכת שעות שבועית</h2>
       </header>
 
       <section className="overflow-hidden rounded-3xl border border-stone-200/80 bg-white shadow-sm">
