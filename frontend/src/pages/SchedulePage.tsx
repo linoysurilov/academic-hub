@@ -1,172 +1,301 @@
-import { useState } from 'react';
-import { Clock, Plus, Trash2, MapPin } from 'lucide-react';
-import { COLLECTIONS } from '../firebase';
-import { useFirestoreCollection } from '../lib/useFirestoreCollection';
+import { useMemo, useState } from 'react'
+import { Clock, MapPin, Pencil, Plus, StickyNote, Trash2, X } from 'lucide-react'
+import { COLLECTIONS } from '../firebase'
+import { useFirestoreCollection } from '../lib/useFirestoreCollection'
 
 interface ScheduleItem {
-  id: string;
-  day: string;
-  courseName: string;
-  time: string;
-  location: string;
-  lecturer: string;
+  id: string
+  day: string
+  hour?: number
+  courseName: string
+  time?: string
+  location: string
+  lecturer: string
 }
 
-const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי'];
+interface CourseNote {
+  id: string
+  courseName: string
+  note: string
+  when: string
+}
+
+const DAYS = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי'] as const
+const HOURS = Array.from({ length: 13 }, (_, index) => 8 + index)
+
+type SlotDraft = {
+  id?: string
+  day: string
+  hour: number
+  courseName: string
+  location: string
+  lecturer: string
+}
+
+function parseHour(item: ScheduleItem): number | null {
+  if (typeof item.hour === 'number') return item.hour
+  const match = item.time?.match(/(\d{1,2})/)
+  if (!match) return null
+  return Number(match[1])
+}
+
+function slotLabel(hour: number): string {
+  const next = String(hour + 1).padStart(2, '0')
+  return `${String(hour).padStart(2, '0')}:00–${next}:00`
+}
 
 export function SchedulePage() {
-  const { items: schedule, loading, add, remove } = useFirestoreCollection<ScheduleItem>(COLLECTIONS.schedule);
-  const [day, setDay] = useState('ראשון');
-  const [courseName, setCourseName] = useState('');
-  const [time, setTime] = useState('');
-  const [location, setLocation] = useState('');
-  const [lecturer, setLecturer] = useState('');
+  const { items: schedule, loading, add, save, remove } = useFirestoreCollection<ScheduleItem>(COLLECTIONS.schedule)
+  const {
+    items: notes,
+    add: addNote,
+    remove: removeNote,
+  } = useFirestoreCollection<CourseNote>(COLLECTIONS.scheduleNotes)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!courseName || !time) return;
+  const [draft, setDraft] = useState<SlotDraft | null>(null)
+  const [noteCourse, setNoteCourse] = useState('')
+  const [noteText, setNoteText] = useState('')
+  const [noteWhen, setNoteWhen] = useState('')
 
-    try {
-      await add({
-        day,
-        courseName,
-        time,
-        location,
-        lecturer,
-      });
-      setCourseName('');
-      setTime('');
-      setLocation('');
-      setLecturer('');
-    } catch (error) {
-      console.error('Error adding schedule item:', error);
+  const slotMap = useMemo(() => {
+    const map = new Map<string, ScheduleItem>()
+    for (const item of schedule) {
+      const hour = parseHour(item)
+      if (hour == null) continue
+      map.set(`${item.day}-${hour}`, item)
     }
-  };
+    return map
+  }, [schedule])
+
+  const openSlot = (day: string, hour: number, existing?: ScheduleItem) => {
+    setDraft({
+      id: existing?.id,
+      day,
+      hour,
+      courseName: existing?.courseName ?? '',
+      location: existing?.location ?? '',
+      lecturer: existing?.lecturer ?? '',
+    })
+  }
+
+  const submitSlot = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!draft?.courseName.trim()) return
+    const payload = {
+      day: draft.day,
+      hour: draft.hour,
+      courseName: draft.courseName.trim(),
+      time: slotLabel(draft.hour),
+      location: draft.location.trim(),
+      lecturer: draft.lecturer.trim(),
+    }
+    if (draft.id) {
+      await save({ id: draft.id, ...payload })
+    } else {
+      await add(payload)
+    }
+    setDraft(null)
+  }
+
+  const submitNote = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!noteCourse.trim() || !noteText.trim()) return
+    await addNote({
+      courseName: noteCourse.trim(),
+      note: noteText.trim(),
+      when: noteWhen.trim(),
+    })
+    setNoteCourse('')
+    setNoteText('')
+    setNoteWhen('')
+  }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-stone-200/80 shadow-sm">
-        <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
-          <Clock className="text-stone-700" size={20} />
-          הוספת שיעור למערכת השעות
-        </h2>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <header className="flex flex-col gap-1">
+        <p className="text-xs font-medium tracking-wide text-stone-400">מערכת שעות</p>
+        <h2 className="text-2xl font-semibold tracking-tight">ראשון עד חמישי, 08:00–21:00</h2>
+        <p className="text-sm text-stone-500">לחצי על משבצת ריקה כדי להוסיף שיעור, או על שיעור קיים כדי לערוך.</p>
+      </header>
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-stone-600 mb-1">יום בשבוע</label>
-            <select
-              value={day}
-              onChange={(e) => setDay(e.target.value)}
-              className="w-full px-3 py-2 bg-stone-50/50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
-            >
-              {DAYS.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-stone-600 mb-1">שם הקורס</label>
-            <input
-              type="text"
-              required
-              value={courseName}
-              onChange={(e) => setCourseName(e.target.value)}
-              className="w-full px-3 py-2 bg-stone-50/50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
-              placeholder="לדוגמה: מבני נתונים"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-stone-600 mb-1">שעות (לדוגמה: 10:00 - 12:00)</label>
-            <input
-              type="text"
-              required
-              value={time}
-              onChange={(e) => setTime(e.target.value)}
-              className="w-full px-3 py-2 bg-stone-50/50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
-              placeholder="10:00 - 12:00"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-stone-600 mb-1">מיקום / חדר</label>
-            <div className="relative">
-              <MapPin className="absolute right-3.5 top-3 text-stone-400" size={16} />
-              <input
-                type="text"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="w-full pr-10 pl-3 py-2 bg-stone-50/50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
-                placeholder="בניין 35, חדר 105"
-              />
-            </div>
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-xs font-medium text-stone-600 mb-1">מרצה / מתרגל</label>
-            <input
-              type="text"
-              value={lecturer}
-              onChange={(e) => setLecturer(e.target.value)}
-              className="w-full px-3 py-2 bg-stone-50/50 border border-stone-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-stone-400"
-              placeholder="שם המרצה"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <button
-              type="submit"
-              className="w-full py-2.5 bg-[#1D1D1F] text-white rounded-xl font-medium hover:bg-stone-800 transition cursor-pointer text-sm flex items-center justify-center gap-2"
-            >
-              <Plus size={16} />
-              הוסף למערכת השעות
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <div className="space-y-4">
-        {DAYS.map((currentDay) => {
-          const dayItems = schedule.filter((item) => item.day === currentDay);
-          if (dayItems.length === 0) return null;
-
-          return (
-            <div key={currentDay} className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-stone-200/80 shadow-sm">
-              <h3 className="text-lg font-medium mb-3 text-stone-800 border-b border-stone-100 pb-2">{currentDay}</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {dayItems.map((item) => (
-                  <div key={item.id} className="p-4 rounded-2xl bg-stone-50/60 border border-stone-200/60 flex items-center justify-between">
-                    <div>
-                      <h4 className="font-medium text-sm text-stone-900 mb-1">{item.courseName}</h4>
-                      <p className="text-xs text-stone-500 flex items-center gap-1 mb-1">
-                        <Clock size={12} /> {item.time}
-                      </p>
-                      {item.location && (
-                        <p className="text-xs text-stone-500 flex items-center gap-1">
-                          <MapPin size={12} /> {item.location}
-                        </p>
-                      )}
-                      {item.lecturer && <p className="text-xs text-stone-400 mt-1">מרצה: {item.lecturer}</p>}
-                    </div>
-                    <button
-                      onClick={() => remove(item.id)}
-                      className="p-2 text-stone-400 hover:text-red-600 transition cursor-pointer"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+      <section className="overflow-hidden rounded-3xl border border-stone-200/80 bg-white shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] border-collapse text-sm">
+            <thead>
+              <tr className="bg-stone-50/80">
+                <th className="sticky right-0 z-10 w-28 border-b border-l border-stone-100 bg-stone-50 px-3 py-3 text-xs font-medium text-stone-400">
+                  שעה
+                </th>
+                {DAYS.map((day) => (
+                  <th key={day} className="border-b border-stone-100 px-2 py-3 text-sm font-semibold text-stone-700">
+                    {day}
+                  </th>
                 ))}
+              </tr>
+            </thead>
+            <tbody>
+              {HOURS.map((hour) => (
+                <tr key={hour} className="align-top">
+                  <th className="sticky right-0 z-10 border-l border-stone-100 bg-white px-3 py-2 text-xs font-medium text-stone-400">
+                    {slotLabel(hour)}
+                  </th>
+                  {DAYS.map((day) => {
+                    const item = slotMap.get(`${day}-${hour}`)
+                    return (
+                      <td key={`${day}-${hour}`} className="h-16 border-b border-stone-50 p-1">
+                        <button
+                          type="button"
+                          onClick={() => openSlot(day, hour, item)}
+                          className={`flex h-full min-h-14 w-full flex-col items-start rounded-xl px-2 py-1.5 text-right transition ${
+                            item
+                              ? 'bg-indigo-50 text-indigo-950 hover:bg-indigo-100'
+                              : 'border border-dashed border-stone-200/80 text-stone-300 hover:border-stone-300 hover:bg-stone-50'
+                          }`}
+                        >
+                          {item ? (
+                            <>
+                              <span className="w-full truncate text-xs font-semibold">{item.courseName}</span>
+                              {item.location && (
+                                <span className="mt-0.5 flex w-full items-center gap-1 truncate text-[10px] text-indigo-700/80">
+                                  <MapPin size={10} />
+                                  {item.location}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-[10px]">+</span>
+                          )}
+                        </button>
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {loading && <p className="px-4 py-3 text-xs text-stone-400">מסנכרן מערכת שעות...</p>}
+      </section>
+
+      <section className="rounded-3xl border border-stone-200/80 bg-white p-5 shadow-sm sm:p-6">
+        <h3 className="mb-1 flex items-center gap-2 text-base font-semibold">
+          <StickyNote size={16} />
+          הערות וזמנים לכל קורס
+        </h3>
+        <p className="mb-4 text-sm text-stone-500">תזכורות, מועדי הגשה או הערות שמופיעות מתחת למערכת השעות בכל מכשיר.</p>
+
+        <form onSubmit={submitNote} className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <input
+            value={noteCourse}
+            onChange={(e) => setNoteCourse(e.target.value)}
+            placeholder="שם הקורס"
+            className="rounded-2xl border border-stone-200 bg-stone-50/70 px-3 py-2.5 text-sm outline-none"
+          />
+          <input
+            value={noteWhen}
+            onChange={(e) => setNoteWhen(e.target.value)}
+            placeholder="זמן / מועד (אופציונלי)"
+            className="rounded-2xl border border-stone-200 bg-stone-50/70 px-3 py-2.5 text-sm outline-none"
+          />
+          <input
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="הערה"
+            className="rounded-2xl border border-stone-200 bg-stone-50/70 px-3 py-2.5 text-sm outline-none sm:col-span-2 lg:col-span-1"
+          />
+          <button type="submit" className="flex items-center justify-center gap-2 rounded-2xl bg-[#1D1D1F] py-2.5 text-sm font-medium text-white">
+            <Plus size={16} />
+            הוסף הערה
+          </button>
+        </form>
+
+        {notes.length === 0 ? (
+          <p className="text-sm text-stone-400">אין עדיין הערות לקורסים.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {notes.map((item) => (
+              <div key={item.id} className="flex items-start justify-between gap-3 rounded-2xl bg-stone-50 px-4 py-3">
+                <div>
+                  <p className="text-sm font-semibold">{item.courseName}</p>
+                  {item.when && (
+                    <p className="mt-0.5 flex items-center gap-1 text-xs text-stone-500">
+                      <Clock size={12} />
+                      {item.when}
+                    </p>
+                  )}
+                  <p className="mt-1 text-sm text-stone-600">{item.note}</p>
+                </div>
+                <button type="button" onClick={() => void removeNote(item.id)} className="text-stone-400 hover:text-rose-600">
+                  <Trash2 size={16} />
+                </button>
               </div>
-            </div>
-          );
-        })}
-        {schedule.length === 0 && !loading && (
-          <div className="bg-white/80 backdrop-blur-xl p-6 rounded-3xl border border-stone-200/80 shadow-sm text-center text-stone-400 text-sm">
-            אין שיעורים במערכת כרגע.
+            ))}
           </div>
         )}
-      </div>
+      </section>
+
+      {draft && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-stone-900/25 p-4 backdrop-blur-xs sm:items-center" onClick={() => setDraft(null)}>
+          <form
+            onSubmit={submitSlot}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md space-y-4 rounded-3xl border border-stone-100 bg-white p-6 shadow-xl"
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="font-semibold">{draft.id ? 'עריכת שיעור' : 'שיעור חדש'}</h3>
+                <p className="text-xs text-stone-500">
+                  {draft.day} · {slotLabel(draft.hour)}
+                </p>
+              </div>
+              <button type="button" onClick={() => setDraft(null)} className="rounded-full p-1 text-stone-400 hover:bg-stone-50">
+                <X size={18} />
+              </button>
+            </div>
+            <input
+              required
+              autoFocus
+              value={draft.courseName}
+              onChange={(e) => setDraft({ ...draft, courseName: e.target.value })}
+              placeholder="שם הקורס"
+              className="w-full rounded-2xl border border-stone-200 px-3 py-2.5 text-sm outline-none"
+            />
+            <input
+              value={draft.location}
+              onChange={(e) => setDraft({ ...draft, location: e.target.value })}
+              placeholder="חדר / מיקום"
+              className="w-full rounded-2xl border border-stone-200 px-3 py-2.5 text-sm outline-none"
+            />
+            <input
+              value={draft.lecturer}
+              onChange={(e) => setDraft({ ...draft, lecturer: e.target.value })}
+              placeholder="מרצה (אופציונלי)"
+              className="w-full rounded-2xl border border-stone-200 px-3 py-2.5 text-sm outline-none"
+            />
+            <div className="flex items-center justify-between gap-2 pt-1">
+              {draft.id ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await remove(draft.id!)
+                    setDraft(null)
+                  }}
+                  className="flex items-center gap-1 rounded-2xl px-3 py-2 text-sm text-rose-600 hover:bg-rose-50"
+                >
+                  <Trash2 size={14} />
+                  מחק
+                </button>
+              ) : (
+                <span />
+              )}
+              <button type="submit" className="flex items-center gap-2 rounded-2xl bg-[#1D1D1F] px-4 py-2.5 text-sm font-medium text-white">
+                {draft.id ? <Pencil size={14} /> : <Plus size={14} />}
+                שמירה
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
-  );
+  )
 }

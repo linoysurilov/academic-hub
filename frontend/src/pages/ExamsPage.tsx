@@ -54,7 +54,7 @@ export function ExamsPage() {
   };
 
   return (
-    <div dir="rtl" className="w-full max-w-7xl mx-auto bg-white rounded-2xl md:rounded-3xl shadow-sm border border-stone-100 p-4 md:p-8 font-sans">
+    <div dir="rtl" className="w-full max-w-6xl mx-auto bg-white rounded-2xl md:rounded-3xl shadow-sm border border-stone-100 p-4 md:p-8 font-sans">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-stone-900 flex items-center gap-2">

@@ -17,6 +17,7 @@ export const db = getFirestore(app)
 export const COLLECTIONS = {
   calendar: 'calendar_events',
   schedule: 'schedule',
+  scheduleNotes: 'schedule_notes',
   tasks: 'academic_courses',
   exams: 'exams',
 } as const

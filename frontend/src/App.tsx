@@ -22,7 +22,7 @@ export default function App() {
       className="min-h-dvh bg-[#FBFBFD] text-[#1D1D1F] px-3 pt-[max(1.25rem,env(safe-area-inset-top))] pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:py-12 md:px-6 md:pb-12 font-sans antialiased"
       dir="rtl"
     >
-      <div className="hidden md:flex max-w-4xl mx-auto mb-8 items-center justify-center bg-white/80 backdrop-blur-md p-2 rounded-2xl border border-stone-200/60 shadow-2xs">
+      <div className="hidden md:flex max-w-6xl mx-auto mb-8 items-center justify-center bg-white/80 backdrop-blur-md p-2 rounded-2xl border border-stone-200/60 shadow-2xs">
         <div className="flex justify-center gap-2 flex-wrap">
           {TABS.map((tab) => {
             const Icon = tab.icon;
@@ -46,7 +46,7 @@ export default function App() {
         </div>
       </div>
 
-      <div className="md:hidden max-w-4xl mx-auto mb-4 px-1">
+      <div className="md:hidden max-w-6xl mx-auto mb-4 px-1">
         <p className="text-sm font-semibold tracking-tight">Academic & Life Hub</p>
       </div>
 
