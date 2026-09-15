@@ -57,8 +57,12 @@ function hourLabel(hour: number): string {
   return `${String(hour).padStart(2, '0')}:00`
 }
 
-function rangeLabel(start: number, end: number): string {
-  return `${hourLabel(start)}–${hourLabel(end)}`
+function TimeRange({ start, end, className = '' }: { start: number; end: number; className?: string }) {
+  return (
+    <span dir="ltr" className={`inline-block tabular-nums ${className}`}>
+      {hourLabel(start)}-{hourLabel(end)}
+    </span>
+  )
 }
 
 export function SchedulePage() {
@@ -113,7 +117,7 @@ export function SchedulePage() {
       startHour,
       endHour,
       courseName: draft.courseName.trim(),
-      time: rangeLabel(startHour, endHour),
+      time: `${hourLabel(startHour)}-${hourLabel(endHour)}`,
       location: draft.location.trim(),
       lecturer: draft.lecturer.trim(),
       color: draft.color,
@@ -133,7 +137,7 @@ export function SchedulePage() {
       location: noteLocation.trim(),
       startHour: noteStart,
       endHour,
-      when: rangeLabel(noteStart, endHour),
+      when: `${hourLabel(noteStart)}-${hourLabel(endHour)}`,
     })
     setNoteCourse('')
     setNoteLocation('')
@@ -167,30 +171,27 @@ export function SchedulePage() {
               {HOURS.map((hour) => (
                 <tr key={hour} className="align-top">
                   <th className="sticky right-0 z-10 border-l border-stone-100 bg-white px-3 py-2 text-xs font-medium text-stone-400">
-                    {rangeLabel(hour, hour + 1)}
+                    <TimeRange start={hour} end={hour + 1} />
                   </th>
                   {DAYS.map((day) => {
                     const item = slotMap.get(`${day}-${hour}`)
                     const color = pastelOf(item?.color)
                     const range = item ? rangeOf(item) : null
-                    const isStart = range?.start === hour
                     return (
                       <td key={`${day}-${hour}`} className="h-16 border-b border-stone-50 p-1">
                         <button
                           type="button"
                           onClick={() => openSlot(day, hour, item)}
-                          className={`flex h-full min-h-14 w-full flex-col items-start rounded-xl px-2 py-1.5 text-right transition ${
+                          className={`flex h-full min-h-14 w-full flex-col items-start justify-center rounded-xl px-2 py-1.5 text-right transition ${
                             item
                               ? `${color.bg} ${color.text}`
                               : 'border border-dashed border-stone-200/80 text-stone-300 hover:border-stone-300 hover:bg-stone-50'
                           }`}
                         >
-                          {item && isStart ? (
+                          {item ? (
                             <>
                               <span className="w-full truncate text-xs font-semibold">{item.courseName}</span>
-                              <span className="text-[10px] opacity-80">
-                                {item.time || (range ? rangeLabel(range.start, range.end) : '')}
-                              </span>
+                              {range && <TimeRange start={range.start} end={range.end} className="text-[10px] opacity-80" />}
                               {item.location && (
                                 <span className="mt-0.5 flex w-full items-center gap-1 truncate text-[10px] opacity-80">
                                   <MapPin size={10} />
@@ -198,8 +199,6 @@ export function SchedulePage() {
                                 </span>
                               )}
                             </>
-                          ) : item ? (
-                            <span className="text-[10px] opacity-50">↕</span>
                           ) : (
                             <span className="text-[10px]">+</span>
                           )}
@@ -279,9 +278,11 @@ export function SchedulePage() {
                 <div>
                   <p className="text-sm font-semibold">{item.courseName}</p>
                   <p className="mt-0.5 text-xs text-stone-500">
-                    {item.startHour != null && item.endHour != null
-                      ? rangeLabel(item.startHour, item.endHour)
-                      : item.when}
+                    {item.startHour != null && item.endHour != null ? (
+                      <TimeRange start={item.startHour} end={item.endHour} />
+                    ) : (
+                      item.when
+                    )}
                     {item.location ? ` · ${item.location}` : ''}
                   </p>
                   {item.note && <p className="mt-1 text-sm text-stone-600">{item.note}</p>}
