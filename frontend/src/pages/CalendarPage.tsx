@@ -11,6 +11,7 @@ import {
   monthBounds,
   toDateKey,
 } from '../lib/hebrewCalendar'
+import { ColorPicker, pastelOf, type PastelId } from '../lib/colors'
 import { useFirestoreCollection } from '../lib/useFirestoreCollection'
 
 interface CalendarEvent {
@@ -20,6 +21,7 @@ interface CalendarEvent {
   time: string
   type: 'exam' | 'submission' | 'personal' | 'study'
   description?: string
+  color?: string
 }
 
 const EVENT_COLORS = [
@@ -48,6 +50,7 @@ export function CalendarPage() {
   const [title, setTitle] = useState('')
   const [time, setTime] = useState('')
   const [type, setType] = useState<CalendarEvent['type']>('study')
+  const [color, setColor] = useState<PastelId>('indigo')
   const [description, setDescription] = useState('')
 
   const holidays = useMemo(() => {
@@ -82,6 +85,7 @@ export function CalendarPage() {
       date: selectedKey,
       time: time || '',
       type,
+      color,
       description: description.trim(),
     })
     setTitle('')
@@ -180,10 +184,19 @@ export function CalendarPage() {
                       </p>
                     )}
                     {dayEvents.length > 0 && (
-                      <div className="mt-1 flex gap-0.5">
-                        {dayEvents.slice(0, 3).map((event) => {
-                          const color = EVENT_COLORS.find((item) => item.id === event.type)
-                          return <span key={event.id} className={`h-1.5 w-1.5 rounded-full ${cell.isToday ? 'bg-white' : color?.dot ?? 'bg-stone-400'}`} />
+                      <div className="mt-1 flex flex-col gap-0.5">
+                        {dayEvents.slice(0, 2).map((event) => {
+                          const pastel = pastelOf(event.color)
+                          return (
+                            <span
+                              key={event.id}
+                              className={`truncate rounded-md px-1 py-px text-[9px] font-medium ${
+                                cell.isToday ? 'bg-white/25 text-white' : `${pastel.bg} ${pastel.text}`
+                              }`}
+                            >
+                              {event.title}
+                            </span>
+                          )
                         })}
                       </div>
                     )}
@@ -238,8 +251,11 @@ export function CalendarPage() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="תיאור (אופציונלי)"
-              className="rounded-2xl border border-stone-200 bg-stone-50/70 px-3 py-2.5 text-sm outline-none"
+              className="rounded-2xl border border-stone-200 bg-stone-50/70 px-3 py-2.5 text-sm outline-none sm:col-span-2"
             />
+            <div className="sm:col-span-2">
+              <ColorPicker value={color} onChange={setColor} />
+            </div>
             <button
               type="submit"
               className="flex items-center justify-center gap-2 rounded-2xl bg-[#1D1D1F] py-2.5 text-sm font-medium text-white sm:col-span-2"
@@ -256,13 +272,14 @@ export function CalendarPage() {
           ) : (
             <div className="space-y-2">
               {selectedEvents.map((event) => {
-                const color = EVENT_COLORS.find((item) => item.id === event.type) ?? EVENT_COLORS[2]
+                const pastel = pastelOf(event.color)
+                const typeLabel = EVENT_COLORS.find((item) => item.id === event.type)?.label ?? event.type
                 return (
-                  <div key={event.id} className={`flex items-start justify-between gap-3 rounded-2xl ${color.bg} px-4 py-3`}>
+                  <div key={event.id} className={`flex items-start justify-between gap-3 rounded-2xl ${pastel.bg} px-4 py-3`}>
                     <div>
-                      <p className="text-sm font-medium">{event.title}</p>
-                      <p className={`text-xs ${color.text}`}>
-                        {color.label}
+                      <p className={`text-sm font-medium ${pastel.text}`}>{event.title}</p>
+                      <p className="text-xs text-stone-500">
+                        {typeLabel}
                         {event.time ? ` · ${event.time}` : ''}
                       </p>
                       {event.description && <p className="mt-1 text-xs text-stone-600">{event.description}</p>}
@@ -294,7 +311,7 @@ export function CalendarPage() {
                     key={event.id}
                     type="button"
                     onClick={() => setSelectedKey(event.date)}
-                    className="flex w-full items-center justify-between rounded-2xl border border-stone-100 px-3 py-2 text-right text-sm hover:bg-stone-50"
+                    className={`flex w-full items-center justify-between rounded-2xl px-3 py-2 text-right text-sm ${pastelOf(event.color).bg}`}
                   >
                     <span className="font-medium">{event.title}</span>
                     <span className="text-xs text-stone-400">{event.date}</span>

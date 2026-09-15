@@ -17,7 +17,9 @@ interface AssignmentItem {
   title: string;
   weight: string;
   grade: string;
-  status: 'לביצוע' | 'בעבודה' | 'הוגש' | 'נבדק';
+  status: string;
+  customStatus?: string;
+  notes?: string;
   teamSize: string;
 }
 
@@ -38,7 +40,11 @@ export function AcademicHub() {
       items.map((course) => ({
         ...course,
         items: course.items ?? [],
-        assignments: course.assignments ?? [],
+        assignments: (course.assignments ?? []).map((assignment) => ({
+          ...assignment,
+          notes: assignment.notes ?? '',
+          status: assignment.status || 'לביצוע',
+        })),
       })),
     [items],
   );
@@ -54,7 +60,9 @@ export function AcademicHub() {
   const [assTitle, setAssTitle] = useState('');
   const [assWeight, setAssWeight] = useState('');
   const [assGrade, setAssGrade] = useState('');
-  const [assStatus, setAssStatus] = useState<'לביצוע' | 'בעבודה' | 'הוגש' | 'נבדק'>('לביצוע');
+  const [assStatus, setAssStatus] = useState('לביצוע');
+  const [assCustomStatus, setAssCustomStatus] = useState('');
+  const [assNotes, setAssNotes] = useState('');
   const [assTeamSize, setAssTeamSize] = useState('לבד');
 
   const [editingItem, setEditingItem] = useState<{ courseId: string; itemId: string; topic: string } | null>(null);
@@ -138,7 +146,8 @@ export function AcademicHub() {
       title: assTitle.trim(),
       weight: assWeight.trim(),
       grade: assGrade.trim(),
-      status: assStatus,
+      status: assStatus === 'מותאם' ? assCustomStatus.trim() || 'מותאם' : assStatus,
+      notes: assNotes.trim(),
       teamSize: assTeamSize.trim(),
     };
 
@@ -149,8 +158,19 @@ export function AcademicHub() {
     setAssWeight('');
     setAssGrade('');
     setAssStatus('לביצוע');
+    setAssCustomStatus('');
+    setAssNotes('');
     setAssTeamSize('לבד');
     setIsAddAssignmentOpen(false);
+  };
+
+  const updateAssignment = (courseId: string, assId: string, patch: Partial<AssignmentItem>) => {
+    const course = courses.find((c) => c.id === courseId);
+    if (!course) return;
+    persistCourse({
+      ...course,
+      assignments: course.assignments.map((a) => (a.id === assId ? { ...a, ...patch } : a)),
+    });
   };
 
   const deleteAssignment = (courseId: string, assId: string) => {
@@ -447,14 +467,44 @@ export function AcademicHub() {
                           </button>
                         </div>
 
-                        <div className="flex items-center justify-between pt-2 border-t border-stone-100 text-xs">
-                          <span className="text-stone-400">סטטוס:</span>
-                          <span className={`px-2.5 py-1 rounded-full font-medium ${
-                            ass.status === 'הוגש' || ass.status === 'נבדק' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {ass.status}
-                          </span>
+                        <div className="flex items-center justify-between pt-2 border-t border-stone-100 text-xs gap-2">
+                          <span className="text-stone-400 shrink-0">סטטוס:</span>
+                          <select
+                            value={['לביצוע', 'בתהליך', 'בעבודה', 'הושלם', 'הוגש', 'נבדק'].includes(ass.status) ? ass.status : 'מותאם'}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value === 'מותאם') {
+                                updateAssignment(activeCourse.id, ass.id, { status: ass.status || 'מותאם' });
+                              } else {
+                                updateAssignment(activeCourse.id, ass.id, { status: value });
+                              }
+                            }}
+                            className="rounded-full border border-stone-200 bg-white px-2 py-1 text-xs"
+                          >
+                            <option value="לביצוע">לביצוע</option>
+                            <option value="בתהליך">בתהליך</option>
+                            <option value="בעבודה">בעבודה</option>
+                            <option value="הושלם">הושלם</option>
+                            <option value="הוגש">הוגש</option>
+                            <option value="נבדק">נבדק</option>
+                            <option value="מותאם">מותאם אישית</option>
+                          </select>
                         </div>
+                        {!['לביצוע', 'בתהליך', 'בעבודה', 'הושלם', 'הוגש', 'נבדק'].includes(ass.status) && (
+                          <input
+                            value={ass.status}
+                            onChange={(e) => updateAssignment(activeCourse.id, ass.id, { status: e.target.value })}
+                            className="rounded-xl border border-stone-200 px-3 py-1.5 text-xs"
+                            placeholder="סטטוס מותאם"
+                          />
+                        )}
+                        <textarea
+                          value={ass.notes ?? ''}
+                          onChange={(e) => updateAssignment(activeCourse.id, ass.id, { notes: e.target.value })}
+                          placeholder='הערות — למשל: "לשלוח מייל על חומר חסר"'
+                          rows={2}
+                          className="w-full rounded-xl border border-stone-200 px-3 py-2 text-xs outline-none"
+                        />
                       </div>
                     ))}
                   </div>
@@ -589,13 +639,16 @@ export function AcademicHub() {
                   <label className="block text-xs font-medium text-stone-500 mb-1">סטטוס עבודה</label>
                   <select
                     value={assStatus}
-                    onChange={(e: any) => setAssStatus(e.target.value)}
+                    onChange={(e) => setAssStatus(e.target.value)}
                     className="w-full text-sm border border-stone-200 rounded-2xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   >
                     <option value="לביצוע">לביצוע</option>
+                    <option value="בתהליך">בתהליך</option>
                     <option value="בעבודה">בעבודה</option>
+                    <option value="הושלם">הושלם</option>
                     <option value="הוגש">הוגש</option>
                     <option value="נבדק">נבדק</option>
+                    <option value="מותאם">מותאם אישית</option>
                   </select>
                 </div>
                 <div>
@@ -608,6 +661,26 @@ export function AcademicHub() {
                     className="w-full text-sm border border-stone-200 rounded-2xl px-4 py-2.5 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
                   />
                 </div>
+              </div>
+
+              {assStatus === 'מותאם' && (
+                <input
+                  value={assCustomStatus}
+                  onChange={(e) => setAssCustomStatus(e.target.value)}
+                  placeholder="כתבי סטטוס מותאם"
+                  className="w-full text-sm border border-stone-200 rounded-2xl px-4 py-2.5"
+                />
+              )}
+
+              <div>
+                <label className="block text-xs font-medium text-stone-500 mb-1">הערות למטלה</label>
+                <textarea
+                  value={assNotes}
+                  onChange={(e) => setAssNotes(e.target.value)}
+                  placeholder='למשל: לשלוח מייל על חומר חסר'
+                  rows={3}
+                  className="w-full text-sm border border-stone-200 rounded-2xl px-4 py-2.5"
+                />
               </div>
             </div>
 
