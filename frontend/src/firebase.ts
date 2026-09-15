@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app'
+import { getAuth, onAuthStateChanged, signInAnonymously } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
 export const firebaseConfig = {
@@ -13,6 +14,29 @@ export const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig)
 export const db = getFirestore(app)
+export const auth = getAuth(app)
+
+export function waitForAuth(): Promise<void> {
+  if (auth.currentUser) return Promise.resolve()
+  return new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        unsubscribe()
+        resolve()
+        return
+      }
+      signInAnonymously(auth)
+        .then(() => {
+          unsubscribe()
+          resolve()
+        })
+        .catch(() => {
+          unsubscribe()
+          resolve()
+        })
+    })
+  })
+}
 
 export const COLLECTIONS = {
   calendar: 'calendar_events',

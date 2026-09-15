@@ -66,14 +66,17 @@ function TimeRange({ start, end, className = '' }: { start: number; end: number;
 }
 
 export function SchedulePage() {
-  const { items: schedule, loading, add, save, remove } = useFirestoreCollection<ScheduleItem>(COLLECTIONS.schedule)
+  const { items: schedule, loading, error, add, save, remove } = useFirestoreCollection<ScheduleItem>(COLLECTIONS.schedule)
   const {
     items: notes,
     add: addNote,
     remove: removeNote,
+    error: notesError,
   } = useFirestoreCollection<CourseNote>(COLLECTIONS.scheduleNotes)
 
   const [draft, setDraft] = useState<SlotDraft | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [noteCourse, setNoteCourse] = useState('')
   const [noteStart, setNoteStart] = useState(10)
   const [noteEnd, setNoteEnd] = useState(13)
@@ -108,9 +111,9 @@ export function SchedulePage() {
 
   const submitSlot = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!draft?.courseName.trim()) return
-    const startHour = draft.startHour
-    const endHour = Math.max(draft.endHour, startHour + 1)
+    if (!draft?.courseName.trim() || saving) return
+    const startHour = Number(draft.startHour)
+    const endHour = Math.max(Number(draft.endHour), startHour + 1)
     const payload = {
       day: draft.day,
       hour: startHour,
@@ -122,9 +125,19 @@ export function SchedulePage() {
       lecturer: draft.lecturer.trim(),
       color: draft.color,
     }
-    if (draft.id) await save({ id: draft.id, ...payload })
-    else await add(payload)
-    setDraft(null)
+    setSaving(true)
+    setSaveError(null)
+    try {
+      if (draft.id) await save({ id: draft.id, ...payload })
+      else await add(payload)
+      setDraft(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'השמירה ל-Firestore נכשלה'
+      setSaveError(message)
+      console.error('Schedule save failed:', err)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const submitNote = async (e: React.FormEvent) => {
@@ -149,6 +162,12 @@ export function SchedulePage() {
       <header>
         <h2 className="text-2xl font-semibold tracking-tight">מערכת שעות שבועית</h2>
       </header>
+
+      {(error || notesError || saveError) && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          {saveError || error || notesError}
+        </div>
+      )}
 
       <section className="overflow-hidden rounded-3xl border border-stone-200/80 bg-white shadow-sm">
         <div className="overflow-x-auto">
@@ -371,9 +390,13 @@ export function SchedulePage() {
               ) : (
                 <span />
               )}
-              <button type="submit" className="flex items-center gap-2 rounded-2xl bg-[#1D1D1F] px-4 py-2.5 text-sm font-medium text-white">
+              <button
+                type="submit"
+                disabled={saving}
+                className="flex items-center gap-2 rounded-2xl bg-[#1D1D1F] px-4 py-2.5 text-sm font-medium text-white disabled:opacity-50"
+              >
                 {draft.id ? <Pencil size={14} /> : <Plus size={14} />}
-                שמירה
+                {saving ? 'שומר...' : 'שמירה'}
               </button>
             </div>
           </form>

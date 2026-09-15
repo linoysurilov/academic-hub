@@ -1,15 +1,19 @@
 import { useEffect, useState } from 'react'
 import {
-  addDoc,
   collection,
   deleteDoc,
   doc,
+  getDocs,
   onSnapshot,
   setDoc,
   type DocumentData,
 } from 'firebase/firestore'
 
-import { db } from '../firebase'
+import { db, waitForAuth } from '../firebase'
+
+function toItems<T extends { id: string }>(docs: { id: string; data: () => DocumentData }[]): T[] {
+  return docs.map((entry) => ({ id: entry.id, ...entry.data() }) as T)
+}
 
 export function useFirestoreCollection<T extends { id: string }>(name: string) {
   const [items, setItems] = useState<T[]>([])
@@ -17,43 +21,85 @@ export function useFirestoreCollection<T extends { id: string }>(name: string) {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const unsubscribe = onSnapshot(
-      collection(db, name),
-      (snapshot) => {
-        const next = snapshot.docs.map((entry) => ({
-          id: entry.id,
-          ...(entry.data() as DocumentData),
-        })) as T[]
-        setItems(next)
-        setLoading(false)
-        setError(null)
-      },
-      (err) => {
-        console.error(`Firestore ${name}:`, err)
-        setError(err.message)
-        setLoading(false)
-      },
-    )
+    const colRef = collection(db, name)
+    let unsub = () => {}
+    let cancelled = false
 
-    return unsubscribe
+    async function listen() {
+      try {
+        await waitForAuth()
+        if (cancelled) return
+
+        const initial = await getDocs(colRef)
+        if (!cancelled) {
+          setItems(toItems<T>(initial.docs))
+          setLoading(false)
+          setError(null)
+        }
+
+        unsub = onSnapshot(
+          colRef,
+          (snapshot) => {
+            if (snapshot.metadata.hasPendingWrites) {
+              setItems(toItems<T>(snapshot.docs))
+              return
+            }
+            setItems(toItems<T>(snapshot.docs))
+            setLoading(false)
+            setError(null)
+          },
+          (err) => {
+            console.error(`Firestore ${name}:`, err)
+            setError(err.message)
+            setLoading(false)
+          },
+        )
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        console.error(`Firestore ${name}:`, err)
+        if (!cancelled) {
+          setError(message)
+          setLoading(false)
+        }
+      }
+    }
+
+    void listen()
+    return () => {
+      cancelled = true
+      unsub()
+    }
   }, [name])
 
   const add = async (data: Omit<T, 'id'>) => {
-    await addDoc(collection(db, name), stripUndefined(data))
+    await waitForAuth()
+    const colRef = collection(db, name)
+    const docRef = doc(colRef)
+    await setDoc(docRef, sanitize(data))
+    return docRef.id
   }
 
   const save = async (item: T) => {
+    await waitForAuth()
     const { id, ...data } = item
-    await setDoc(doc(db, name, id), stripUndefined(data))
+    const docRef = doc(collection(db, name), id)
+    await setDoc(docRef, sanitize(data), { merge: true })
   }
 
   const remove = async (id: string) => {
-    await deleteDoc(doc(db, name, id))
+    await waitForAuth()
+    await deleteDoc(doc(collection(db, name), id))
   }
 
   return { items, loading, error, add, save, remove }
 }
 
-function stripUndefined<T extends object>(data: T): T {
-  return Object.fromEntries(Object.entries(data).filter(([, value]) => value !== undefined)) as T
+function sanitize(data: object): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(data)) {
+    if (value === undefined) continue
+    if (typeof value === 'number' && Number.isNaN(value)) continue
+    out[key] = value
+  }
+  return out
 }
