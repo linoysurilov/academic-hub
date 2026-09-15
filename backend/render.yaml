@@ -1,0 +1,20 @@
+# Optional Blueprint. You can also connect the Git repo in the Render dashboard
+# and set Root Directory to `backend`.
+services:
+  - type: web
+    name: personal-ai-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: FRONTEND_ORIGINS
+        sync: false
+      - key: FRONTEND_ORIGIN_REGEX
+        value: https://.*\.vercel\.app
+      - key: DATABASE_URL
+        sync: false
+      - key: TASKS_API_URL
+        sync: false

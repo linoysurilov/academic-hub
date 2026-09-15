@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Heebo", "Outfit", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Outfit", "Heebo", ui-sans-serif, system-ui, sans-serif;
+  --color-hub-50: #eefbf8;
+  --color-hub-400: #2dd4bf;
+  --color-hub-500: #14b8a6;
+  --color-hub-600: #0d9488;
+  --color-ink-950: #07080d;
+}
+
+html,
+body,
+#root {
+  min-height: 100dvh;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background: #fbfbfd;
+  color: #1d1d1f;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dark body {
+  background: #07080d;
+  color: #e5e7eb;
+}
+
+.hub-grid {
+  background-image:
+    radial-gradient(circle at 12% -10%, rgba(20, 184, 166, 0.18), transparent 42%),
+    radial-gradient(circle at 92% 8%, rgba(99, 102, 241, 0.16), transparent 38%),
+    linear-gradient(180deg, transparent, transparent);
+}
+
+.dark .hub-grid {
+  background-image:
+    radial-gradient(circle at 12% -10%, rgba(45, 212, 191, 0.16), transparent 42%),
+    radial-gradient(circle at 92% 8%, rgba(129, 140, 248, 0.14), transparent 38%);
+}
