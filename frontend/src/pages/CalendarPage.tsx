@@ -30,13 +30,17 @@ const EVENT_COLORS = [
 ] as const
 
 export function CalendarPage() {
-  const today = useMemo(() => {
+  const range = useMemo(() => {
     const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    return {
+      today: todayDate,
+      todayKey: toDateKey(todayDate),
+      minMonth: addMonths(todayDate, -12),
+      maxMonth: addMonths(todayDate, 12),
+    }
   }, [])
-  const todayKey = toDateKey(today)
-  const minMonth = addMonths(today, -12)
-  const maxMonth = addMonths(today, 12)
+  const { today, todayKey, minMonth, maxMonth } = range
 
   const { items: events, loading, add, remove } = useFirestoreCollection<CalendarEvent>(COLLECTIONS.calendar)
   const [view, setView] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1))

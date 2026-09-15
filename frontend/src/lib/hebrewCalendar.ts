@@ -94,22 +94,32 @@ function toCell(date: Date, inMonth: boolean, todayKey: string): DayCell {
 }
 
 export function holidayMapForRange(start: Date, end: Date): Map<string, string[]> {
-  const events = HebrewCalendar.calendar({
-    start,
-    end,
-    il: true,
-    locale: 'he',
-    noSpecialShabbat: true,
-  })
-
   const map = new Map<string, string[]>()
-  for (const event of events) {
-    if ((event.getFlags() & HOLIDAY_FLAGS) === 0) continue
-    const key = toDateKey(event.getDate().greg())
-    const name = event.render('he-x-NoNikud') || event.render('he')
-    const list = map.get(key) ?? []
-    if (!list.includes(name)) list.push(name)
-    map.set(key, list)
+  try {
+    const events = HebrewCalendar.calendar({
+      start,
+      end,
+      il: true,
+      locale: 'he',
+      noSpecialShabbat: true,
+    })
+
+    for (const event of events) {
+      if ((event.getFlags() & HOLIDAY_FLAGS) === 0) continue
+      const key = toDateKey(event.getDate().greg())
+      let name = ''
+      try {
+        name = event.render('he-x-NoNikud') || event.render('he')
+      } catch {
+        name = event.getDesc()
+      }
+      if (!name) continue
+      const list = map.get(key) ?? []
+      if (!list.includes(name)) list.push(name)
+      map.set(key, list)
+    }
+  } catch (error) {
+    console.error('Hebrew holiday calendar failed:', error)
   }
   return map
 }
